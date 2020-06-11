@@ -1,0 +1,22 @@
+{
+  "name": "online-cv",
+  "version": "1.0.0",
+  "description": "A Online CV app as a final project",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server -c-1"
+  },
+  "keywords": [
+    "pwa",
+    "progressive",
+    "web",
+    "app",
+    "complete",
+    "cv"
+  ],
+  "author": "Sjaan Ackermann",
+  "license": "ISC",
+  "devDependencies": {
+    "http-server": "^0.12.3"
+  }
+}
