@@ -1,7 +1,7 @@
 importScripts('/src/js/idb.js');
 importScripts('/src/js/utility.js');
 
-var CACHE_STATIC_NAME = 'static-v23';
+var CACHE_STATIC_NAME = 'static-v28';
 var CACHE_DYNAMIC_NAME = 'dynamic-v2';
 var STATIC_FILES = [
   '/',
@@ -189,7 +189,7 @@ self.addEventListener('sync', function(event) {
       readAllData('sync-posts')
         .then(function(data) {
           for (var dt of data) {
-            fetch('https://online-cv-7bf88.firebaseio.com/posts.json', {
+            fetch('https://us-central1-online-cv-7bf88.cloudfunctions.net/storePostData', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -202,18 +202,86 @@ self.addEventListener('sync', function(event) {
                 image: 'https://firebasestorage.googleapis.com/v0/b/online-cv-7bf88.appspot.com/o/me.jpg?alt=media&token=aadcd42a-698d-44ab-801b-26835ccd6a6c'
               })
             })
-              .then(function(res) {
-                console.log('Sent data', res);
-                if (res.ok) {
-                  deleteItemFromData('sync-posts', dt.id); // Isn't working correctly!
-                }
-              })
-              .catch(function(err) {
-                console.log('Error while sending data', err);
-              });
-          }
+            .then(function(res) {
+              console.log('Sent data', res);
+              if (res.ok) {
+                res.json()
+                  .then(function(resData) {
+                    deleteItemFromData('sync-posts', resData.id);
+                  });
+              }
+            })
+            .catch(function(err) {
+              console.log('Error while sending data', err);
+            });
+        }
 
+      })
+  );
+}
+});
+
+self.addEventListener('notificationclick', function(event) {
+  var notification = event.notification;
+  var action = event.action;
+
+  console.log(notification);
+
+  if (action === 'confirm') {
+    console.log('Confirm was chosen');
+    notification.close();
+  } else {
+    console.log(action);
+    event.waitUntil(
+      clients.matchAll()
+        .then(function(clis) {
+          var client = clis.find(function(c) {
+            return c.visibilityState === 'visible';
+          });
+
+          if (client !== undefined) {
+            client.navigate(notification.data.url);
+            client.focus();
+          } else {
+            clients.openWindow(notification.data.url);
+          }
+          notification.close();
         })
     );
   }
 });
+
+self.addEventListener('notificationclose', function(event) {
+  console.log('Notification was closed', event);
+});
+
+self.addEventListener('push', function(event) {
+  console.log('Push Notification received', event);
+
+  var data = {title: 'New!', content: 'Something new happened!', openUrl: '/'};
+
+  if (event.data) {
+    data = JSON.parse(event.data.text());
+  }
+
+  var options = {
+    body: data.content,
+    icon: '/src/images/icons/app-icon-96x96.png',
+    badge: '/src/images/icons/app-icon-96x96.png',
+    data: {
+      url: data.openUrl
+    }
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+
+
+
+
+
+
+
