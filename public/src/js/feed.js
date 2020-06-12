@@ -10,6 +10,43 @@ var canvasElement = document.querySelector('#canvas');
 var captureButton = document.querySelector('#capture-btn');
 var imagePicker = document.querySelector('#image-picker');
 var imagePickerArea = document.querySelector('#pick-image');
+var picture;
+var locationBtn = document.querySelector('#location-btn');
+var locationLoader = document.querySelector('#location-loader');
+var fetchedLocation = {lat: 0, lng: 0};
+
+locationBtn.addEventListener('click', function (event) {
+  if (!('geolocation' in navigator)) {
+    return;
+  }
+  var sawAlert = false;
+
+  locationBtn.style.display = 'none';
+  locationLoader.style.display = 'block';
+
+  navigator.geolocation.getCurrentPosition(function (position) {
+    locationBtn.style.display = 'inline';
+    locationLoader.style.display = 'none';
+    fetchedLocation = {lat: position.coords.latitude, lng: 0};
+    locationInput.value = 'In Cape Town';
+    document.querySelector('#manual-location').classList.add('is-focused');
+  }, function (err) {
+    console.log(err);
+    locationBtn.style.display = 'inline';
+    locationLoader.style.display = 'none';
+    if (!sawAlert) {
+      alert('Couldn\'t fetch location, please enter manually!');
+      sawAlert = true;
+    }
+    fetchedLocation = {lat: 0, lng: 0};
+  }, {timeout: 7000});
+});
+
+function initializeLocation() {
+  if (!('geolocation' in navigator)) {
+    locationBtn.style.display = 'none';
+  }
+}
 
 function initializeMedia() {
   if (!('mediaDevices' in navigator)) {
@@ -39,27 +76,35 @@ navigator.mediaDevices.getUserMedia({video: true})
 });
 }
 
-captureButton.addEventListener('click', function(event) {
+captureButton.addEventListener('click', function (event) {
   canvasElement.style.display = 'block';
   videoPlayer.style.display = 'none';
   captureButton.style.display = 'none';
   var context = canvasElement.getContext('2d');
   context.drawImage(videoPlayer, 0, 0, canvas.width, videoPlayer.videoHeight / (videoPlayer.videoWidth / canvas.width));
-  videoPlayer.srcObject.getVideoTracks().forEach(function(track) {
+  videoPlayer.srcObject.getVideoTracks().forEach(function (track) {
     track.stop();
   });
+  picture = dataURItoBlob(canvasElement.toDataURL());
+});
+
+imagePicker.addEventListener('change', function (event) {
+  picture = event.target.files[0];
 });
 
 function openCreatePostModal() {
   // createPostArea.style.display = 'block';
   // setTimeout(function() {
+  setTimeout(function () {
     createPostArea.style.transform = 'translateY(0)';
-    initializeMedia();
+  }, 1);
+  initializeMedia();
+  initializeLocation();
   // }, 1);
   if (deferredPrompt) {
     deferredPrompt.prompt();
 
-    deferredPrompt.userChoice.then(function(choiceResult) {
+    deferredPrompt.userChoice.then(function (choiceResult) {
       console.log(choiceResult.outcome);
 
       if (choiceResult.outcome === 'dismissed') {
@@ -83,10 +128,20 @@ function openCreatePostModal() {
 }
 
 function closeCreatePostModal() {
-  createPostArea.style.transform = 'translateY(100vh)';
   imagePickerArea.style.display = 'none';
   videoPlayer.style.display = 'none';
   canvasElement.style.display = 'none';
+  locationBtn.style.display = 'inline';
+  locationLoader.style.display = 'none';
+  captureButton.style.display = 'inline';
+  if (videoPlayer.srcObject) {
+    videoPlayer.srcObject.getVideoTracks().forEach(function (track) {
+      track.stop();
+    });
+  }
+  setTimeout(function () {
+    createPostArea.style.transform = 'translateY(100vh)';
+  }, 1);
   // createPostArea.style.display = 'none';
 }
 
@@ -173,26 +228,26 @@ if ('indexedDB' in window) {
 }
 
 function sendData() {
+  var id = new Date().toISOString();
+  var postData = new FormData();
+  postData.append('id', id);
+  postData.append('title', titleInput.value);
+  postData.append('location', locationInput.value);
+  postData.append('rawLocationLat', fetchedLocation.lat);
+  postData.append('rawLocationLng', fetchedLocation.lng);
+  postData.append('file', picture, id + '.png');
+
   fetch('https://us-central1-online-cv-7bf88.cloudfunctions.net/storePostData', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify({
-      id: new Date().toISOString(),
-      title: titleInput.value,
-      location: locationInput.value,
-      image: 'https://firebasestorage.googleapis.com/v0/b/online-cv-7bf88.appspot.com/o/me.jpg?alt=media&token=aadcd42a-698d-44ab-801b-26835ccd6a6c'
-    })
+    body: postData
   })
-    .then(function(res) {
+    .then(function (res) {
       console.log('Sent data', res);
       updateUI();
     })
 }
 
-form.addEventListener('submit', function(event) {
+form.addEventListener('submit', function (event) {
   event.preventDefault();
 
   if (titleInput.value.trim() === '' || locationInput.value.trim() === '') {
@@ -204,22 +259,24 @@ form.addEventListener('submit', function(event) {
 
   if ('serviceWorker' in navigator && 'SyncManager' in window) {
     navigator.serviceWorker.ready
-      .then(function(sw) {
+      .then(function (sw) {
         var post = {
           id: new Date().toISOString(),
           title: titleInput.value,
-          location: locationInput.value
+          location: locationInput.value,
+          picture: picture,
+          rawLocation: fetchedLocation
         };
         writeData('sync-posts', post)
-          .then(function() {
-            return sw.sync.register('sync-new-post');
+          .then(function () {
+            return sw.sync.register('sync-new-posts');
           })
-          .then(function() {
-            var snackbackContainer = document.querySelector('#confirmation-toast');
+          .then(function () {
+            var snackbarContainer = document.querySelector('#confirmation-toast');
             var data = {message: 'Your Post was saved for syncing!'};
-            snackbackContainer.MaterialSnackback.showSnackbar(data);
+            snackbarContainer.MaterialSnackbar.showSnackbar(data);
           })
-          .catch(function(err) {
+          .catch(function (err) {
             console.log(err);
           });
       });

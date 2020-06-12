@@ -1,13 +1,14 @@
 importScripts('/src/js/idb.js');
 importScripts('/src/js/utility.js');
 
-var CACHE_STATIC_NAME = 'static-v28';
+var CACHE_STATIC_NAME = 'static-v31';
 var CACHE_DYNAMIC_NAME = 'dynamic-v2';
 var STATIC_FILES = [
   '/',
   '/index.html',
   '/offline.html',
   '/src/js/app.js',
+  '/src/js/utility.js',
   '/src/js/feed.js',
   '/src/js/idb.js',
   '/src/js/promise.js',
@@ -189,36 +190,35 @@ self.addEventListener('sync', function(event) {
       readAllData('sync-posts')
         .then(function(data) {
           for (var dt of data) {
+            var postData = new FormData();
+            postData.append('id', dt.id);
+            postData.append('title', dt.title);
+            postData.append('location', dt.location);
+            postData.append('rawLocationLat', dt.rawLocation.lat);
+            postData.append('rawLocationLng', dt.rawLocation.lng);
+            postData.append('file', dt.picture, dt.id + '.png');
+
             fetch('https://us-central1-online-cv-7bf88.cloudfunctions.net/storePostData', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify({
-                id: dt.id,
-                title: dt.title,
-                location: dt.location,
-                image: 'https://firebasestorage.googleapis.com/v0/b/online-cv-7bf88.appspot.com/o/me.jpg?alt=media&token=aadcd42a-698d-44ab-801b-26835ccd6a6c'
+              body: postData
+            })
+              .then(function(res) {
+                console.log('Sent data', res);
+                if (res.ok) {
+                  res.json()
+                    .then(function(resData) {
+                      deleteItemFromData('sync-posts', resData.id);
+                    });
+                }
               })
-            })
-            .then(function(res) {
-              console.log('Sent data', res);
-              if (res.ok) {
-                res.json()
-                  .then(function(resData) {
-                    deleteItemFromData('sync-posts', resData.id);
-                  });
-              }
-            })
-            .catch(function(err) {
-              console.log('Error while sending data', err);
-            });
-        }
+              .catch(function(err) {
+                console.log('Error while sending data', err);
+              });
+          }
 
-      })
-  );
-}
+        })
+    );
+  }
 });
 
 self.addEventListener('notificationclick', function(event) {
