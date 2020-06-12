@@ -124,6 +124,26 @@ if ('indexedDB' in window) {
     });
 }
 
+function sendData() {
+  fetch('https://online-cv-7bf88.firebaseio.com/posts.json', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      id: new Date().toISOString(),
+      title: titleInput.value,
+      location: locationInput.value,
+      image: 'https://firebasestorage.googleapis.com/v0/b/online-cv-7bf88.appspot.com/o/me.jpg?alt=media&token=aadcd42a-698d-44ab-801b-26835ccd6a6c'
+    })
+  })
+    .then(function(res) {
+      console.log('Sent data', res);
+      updateUI();
+    })
+}
+
 form.addEventListener('submit', function(event) {
   event.preventDefault();
 
@@ -134,5 +154,28 @@ form.addEventListener('submit', function(event) {
 
   closeCreatePostModal();
 
-
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    navigator.serviceWorker.ready
+      .then(function(sw) {
+        var post = {
+          id: new Date().toISOString(),
+          title: titleInput.value,
+          location: locationInput.value
+        };
+        writeData('sync-posts', post)
+          .then(function() {
+            return sw.sync.register('sync-new-post');
+          })
+          .then(function() {
+            var snackbackContainer = document.querySelector('#confirmation-toast');
+            var data = {message: 'Your Post was saved for syncing!'};
+            snackbackContainer.MaterialSnackback.showSnackbar(data);
+          })
+          .catch(function(err) {
+            console.log(err);
+          });
+      });
+  } else {
+    sendData();
+  }
 });
